@@ -26,10 +26,13 @@ Ortam değişkenleri:
 
 ## Kullanım
 
-**Sürekli çalışma (30 dakikada bir kontrol):**
+**Sürekli çalışma (iç cron):**
 ```bash
 ./ai-news-bot
 ```
+
+- **AlphaSignal (AI News):** saatte 1 kez
+- **Claude Status:** 10 dakikada 1 kez
 
 **Tek seferlik (cron için):**
 ```bash

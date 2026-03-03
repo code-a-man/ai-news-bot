@@ -35,10 +35,12 @@ func main() {
 		}
 	}
 
-	run := func() {
+	runAlphaSignal := func() {
 		if err := runCheck(cfg); err != nil {
 			log.Printf("alphasignal error: %v", err)
 		}
+	}
+	runClaudeStatus := func() {
 		if err := runClaudeStatusCheck(cfg); err != nil {
 			log.Printf("claude status error: %v", err)
 		}
@@ -48,17 +50,22 @@ func main() {
 		if *dryRun {
 			runDryRun(cfg)
 		} else {
-			run()
+			runAlphaSignal()
+			runClaudeStatus()
 		}
 		return
 	}
 
 	c := cron.New()
-	if _, err := c.AddFunc("*/30 * * * *", run); err != nil {
+	if _, err := c.AddFunc("0 * * * *", runAlphaSignal); err != nil {
 		log.Fatalf("cron: %v", err)
 	}
+	if _, err := c.AddFunc("*/10 * * * *", runClaudeStatus); err != nil {
+		log.Fatalf("cron: %v", err)
+	}
+
 	c.Start()
-	log.Println("cron started: every 30 minutes")
+	log.Println("cron started: alphasignal every 1 hour, claude status every 10 minutes")
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
