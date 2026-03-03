@@ -31,6 +31,38 @@ func (c *Client) SendToChats(chatIDs []string, text string) error {
 	return nil
 }
 
+func (c *Client) SendSingle(chatID string, text string) (int, error) {
+	var msg tgbotapi.MessageConfig
+	if id, err := strconv.ParseInt(chatID, 10, 64); err == nil {
+		msg = tgbotapi.NewMessage(id, text)
+	} else {
+		msg = tgbotapi.NewMessageToChannel(chatID, text)
+	}
+	msg.ParseMode = "Markdown"
+	msg.DisableWebPagePreview = true
+	m, err := c.bot.Send(msg)
+	if err != nil {
+		return 0, fmt.Errorf("send: %w", err)
+	}
+	return m.MessageID, nil
+}
+
+func (c *Client) EditMessage(chatID string, messageID int, text string) error {
+	var cfg tgbotapi.EditMessageTextConfig
+	if id, err := strconv.ParseInt(chatID, 10, 64); err == nil {
+		cfg = tgbotapi.NewEditMessageText(id, messageID, text)
+	} else {
+		cfg = tgbotapi.EditMessageTextConfig{
+			BaseEdit: tgbotapi.BaseEdit{ChannelUsername: chatID, MessageID: messageID},
+			Text:     text,
+		}
+	}
+	cfg.ParseMode = "Markdown"
+	cfg.DisableWebPagePreview = true
+	_, err := c.bot.Send(cfg)
+	return err
+}
+
 func (c *Client) Send(chatID string, text string) error {
 	chunks := splitMessage(text)
 	for i, chunk := range chunks {

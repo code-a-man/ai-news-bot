@@ -1,6 +1,9 @@
-# AlphaSignal Telegram Bot
+# AI News Telegram Bot
 
-AlphaSignal API'den haberleri çeken, `_id` ve `timestamp` değişimini takip eden ve yeni içerik geldiğinde Telegram kanalına veya abone gruplara gönderen Go tabanlı bot.
+AlphaSignal haberleri ve Claude Status RSS'i takip eden Telegram botu.
+
+- **AlphaSignal**: `_id`/`timestamp` değişince yeni haberleri gönderir
+- **Claude Status**: Yeni incident gelince mesaj atar, güncelleme olunca aynı mesajı düzenler
 
 ## Kurulum
 
@@ -16,8 +19,10 @@ Ortam değişkenleri:
 |----------|----------|
 | `TELEGRAM_BOT_TOKEN` | BotFather'dan alınan token (zorunlu) |
 | `TELEGRAM_CHAT_IDS` | Hedef chat ID'leri, virgülle ayrılmış (örn: `@channel,-1001234567890`) |
-| `STATE_FILE` | State dosya yolu (varsayılan: `./state.json`) |
-| `ALPHASIGNAL_API` | API URL (varsayılan: `https://alphasignal.ai/api/last-campaign`) |
+| `STATE_FILE` | AlphaSignal state (varsayılan: `./state.json`) |
+| `ALPHASIGNAL_API` | AlphaSignal API URL |
+| `CLAUDE_STATUS_RSS_URL` | Claude Status RSS (varsayılan: `https://status.claude.com/history.rss`) |
+| `STATE_RSS_FILE` | Claude Status state (varsayılan: `./state_rss.json`) |
 
 ## Kullanım
 
@@ -43,7 +48,8 @@ Ortam değişkenleri:
 
 ## İlk Çalıştırma
 
-İlk çalıştırmada state kaydedilir ancak mesaj gönderilmez (spam önleme). Sonraki çalışmalarda `_id` veya `timestamp` değiştiğinde yeni haberler gönderilir.
+- **AlphaSignal**: İlk çalıştırmada state kaydedilir, mesaj gönderilmez. Sonraki çalışmalarda `_id`/`timestamp` değişince haberler gönderilir.
+- **Claude Status**: İlk çalıştırmada yalnızca açık (`Resolved` olmayan) incident'ler için mesaj gönderilir ve message ID'leri state'e kaydedilir. Kapalı incident'ler state'e işlenir ama mesaj atılmaz. Sonraki çalışmalarda yeni açık incident mesajı atılır, aynı incident güncellendikçe mevcut mesaj düzenlenir.
 
 ## Cron Örneği
 

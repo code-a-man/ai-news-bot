@@ -10,6 +10,7 @@ import (
 	"ai-news-bot/config"
 	"ai-news-bot/fetcher"
 	"ai-news-bot/parser"
+	"ai-news-bot/rss"
 	"ai-news-bot/state"
 	"ai-news-bot/telegram"
 
@@ -36,7 +37,10 @@ func main() {
 
 	run := func() {
 		if err := runCheck(cfg); err != nil {
-			log.Printf("check error: %v", err)
+			log.Printf("alphasignal error: %v", err)
+		}
+		if err := runClaudeStatusCheck(cfg); err != nil {
+			log.Printf("claude status error: %v", err)
 		}
 	}
 
@@ -115,6 +119,118 @@ func runCheck(cfg *config.Config) error {
 	return nil
 }
 
+func runClaudeStatusCheck(cfg *config.Config) error {
+	items, err := rss.Fetch(cfg.ClaudeRSSURL)
+	if err != nil {
+		return err
+	}
+
+	s, err := state.LoadRSS(cfg.StateRSSFile)
+	if err != nil {
+		return err
+	}
+
+	tg, err := telegram.New(cfg.TelegramToken)
+	if err != nil {
+		return err
+	}
+
+	firstRun := len(s.Incidents) == 0
+	if firstRun {
+		for _, item := range items {
+			guid := item.GUID
+			if guid == "" {
+				guid = item.Link
+			}
+			if guid == "" {
+				continue
+			}
+			descHash := state.HashDescription(item.Description)
+			isOpen := rss.IsOpenIncident(item)
+			text := rss.FormatMessage(item)
+
+			for _, chatID := range cfg.ChatIDs {
+				if !isOpen {
+					s.SetMessage(guid, chatID, 0, descHash)
+					continue
+				}
+
+				sentID, err := tg.SendSingle(chatID, text)
+				if err != nil {
+					log.Printf("claude status first-run send failed: %v", err)
+					continue
+				}
+				s.SetMessage(guid, chatID, sentID, descHash)
+			}
+		}
+		if err := state.SaveRSS(cfg.StateRSSFile, s); err != nil {
+			return err
+		}
+		log.Println("claude status: first run completed (open incidents sent, state saved)")
+		return nil
+	}
+
+	modified := false
+	for _, item := range items {
+		guid := item.GUID
+		if guid == "" {
+			guid = item.Link
+		}
+		if guid == "" {
+			continue
+		}
+
+		descHash := state.HashDescription(item.Description)
+		text := rss.FormatMessage(item)
+		isOpen := rss.IsOpenIncident(item)
+
+		for _, chatID := range cfg.ChatIDs {
+			msgID, lastHash, exists := s.GetMessage(guid, chatID)
+			if !exists {
+				if isOpen {
+					sentID, err := tg.SendSingle(chatID, text)
+					if err != nil {
+						log.Printf("claude status send failed: %v", err)
+						continue
+					}
+					s.SetMessage(guid, chatID, sentID, descHash)
+				} else {
+					s.SetMessage(guid, chatID, 0, descHash)
+				}
+				modified = true
+			} else if lastHash != descHash {
+				if msgID == 0 {
+					if isOpen {
+						sentID, err := tg.SendSingle(chatID, text)
+						if err != nil {
+							log.Printf("claude status send failed: %v", err)
+							continue
+						}
+						s.SetMessage(guid, chatID, sentID, descHash)
+					} else {
+						s.SetMessage(guid, chatID, 0, descHash)
+					}
+				} else {
+					if err := tg.EditMessage(chatID, msgID, text); err != nil {
+						log.Printf("claude status edit failed: %v", err)
+						continue
+					}
+					s.SetMessage(guid, chatID, msgID, descHash)
+				}
+				modified = true
+			}
+		}
+	}
+
+	if modified {
+		if err := state.SaveRSS(cfg.StateRSSFile, s); err != nil {
+			return err
+		}
+		log.Println("claude status: updated")
+	}
+	return nil
+}
+
 func runDryRun(cfg *config.Config) {
 	campaign, err := fetcher.Fetch(cfg.APIURL)
 	if err != nil {
@@ -129,7 +245,22 @@ func runDryRun(cfg *config.Config) {
 	log.Printf("parsed %d items, readTime=%q", len(items), readTime)
 
 	text := parser.FormatMessage(items, readTime, campaign.Subject)
-	log.Println("--- formatted message ---")
+	log.Println("--- AlphaSignal ---")
 	log.Println(text)
 	log.Println("--- end ---")
+
+	rssItems, err := rss.Fetch(cfg.ClaudeRSSURL)
+	if err != nil {
+		log.Printf("rss fetch: %v", err)
+		return
+	}
+	log.Printf("--- Claude Status RSS (%d items) ---", len(rssItems))
+	for i, item := range rssItems {
+		if i >= 3 {
+			log.Printf("... and %d more", len(rssItems)-3)
+			break
+		}
+		log.Println(rss.FormatMessage(item))
+		log.Println("---")
+	}
 }

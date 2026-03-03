@@ -6,15 +6,19 @@ import (
 )
 
 const (
-	DefaultAPIURL    = "https://alphasignal.ai/api/last-campaign"
-	DefaultStateFile = "./state.json"
+	DefaultAPIURL        = "https://alphasignal.ai/api/last-campaign"
+	DefaultStateFile    = "./state.json"
+	DefaultClaudeRSSURL = "https://status.claude.com/history.rss"
+	DefaultStateRSSFile = "./state_rss.json"
 )
 
 type Config struct {
-	TelegramToken string
-	ChatIDs       []string
-	StateFile     string
-	APIURL        string
+	TelegramToken   string
+	ChatIDs         []string
+	StateFile       string
+	APIURL          string
+	ClaudeRSSURL    string
+	StateRSSFile    string
 }
 
 func Load() *Config {
@@ -38,10 +42,22 @@ func Load() *Config {
 		apiURL = DefaultAPIURL
 	}
 
+	claudeRSS := os.Getenv("CLAUDE_STATUS_RSS_URL")
+	if claudeRSS == "" {
+		claudeRSS = DefaultClaudeRSSURL
+	}
+
+	stateRSS := os.Getenv("STATE_RSS_FILE")
+	if stateRSS == "" {
+		stateRSS = DefaultStateRSSFile
+	}
+
 	return &Config{
 		TelegramToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
 		ChatIDs:       chatIDList,
 		StateFile:     stateFile,
 		APIURL:        apiURL,
+		ClaudeRSSURL:  claudeRSS,
+		StateRSSFile:  stateRSS,
 	}
 }
